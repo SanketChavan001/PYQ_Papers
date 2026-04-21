@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PaperVault – Previous Year Question Papers</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+
+<body>
+  <div id="authControls" style="position: absolute; top: 1rem; right: 1.5rem; z-index: 1000;">
+    <span id="userNav" style="color: white; font-weight: 500; text-shadow: 0 2px 4px rgba(0,0,0,0.5);"></span>
+    <a href="#" id="logoutNav" onclick="logout(); return false;" class="btn btn-danger"
+      style="display: none; padding: 0.5rem 1rem; font-size: 0.85rem;">Logout</a>
+  </div>
+
+  <main class="container">
+
+    <div id="landingHero" style="text-align: center; margin-top: 30vh;">
+      <button class="btn btn-primary"
+        style="padding: 1rem 2.5rem; font-size: 1.25rem; box-shadow: 0 4px 15px rgba(0,0,0,0.3);"
+        onclick="showSearch()">
+        Search Question Papers
+      </button>
+    </div>
+
+    <div id="mainContent" style="display: none;">
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <h2 style="margin: 0;">Find Question Papers</h2>
+          <button class="btn btn-secondary" style="padding: 0.25rem 0.75rem;" onclick="hideSearch()">✕</button>
+        </div>
+        <p>Select branch, semester, subject and academic year to view available papers.</p>
+        <div class="filter-grid">
+          <div class="form-group">
+            <label for="branch">Branch</label>
+            <select id="branch">
+              <option value="">-- Select Branch --</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="semester">Semester</label>
+            <select id="semester">
+              <option value="">-- Select Semester --</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="subject">Subject</label>
+            <select id="subject">
+              <option value="">-- Select Subject --</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="year">Academic Year</label>
+            <select id="year">
+              <option value="">-- Select Year --</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="searchPapers()">Search</button>
+      </div>
+
+      <div class="card" id="resultsCard" style="display: none;">
+        <h2>Results</h2>
+        <ul class="results-list" id="resultsList"></ul>
+        <p class="no-results" id="noResults" style="display: none;">No question papers found. Try different filters.
+        </p>
+      </div>
+    </div>
+
+
+    <script src="/static/js/main.js"></script>
+    <script>
+      const API = '/api';
+      let branches = [], semesters = [], subjects = [], years = [];
+
+      function showSearch() {
+        document.getElementById('landingHero').style.display = 'none';
+        document.getElementById('mainContent').style.display = 'block';
+      }
+
+      function hideSearch() {
+        document.getElementById('mainContent').style.display = 'none';
+        document.getElementById('landingHero').style.display = 'block';
+      }
+
+      document.addEventListener('DOMContentLoaded', function () {
+        loadFilters();
+
+        const user = sessionStorage.getItem('user');
+        if (user) {
+          const u = JSON.parse(user);
+          document.getElementById('userNav').innerHTML = `<span style="margin-right:1rem; color: white;">${u.username}</span>`;
+          document.getElementById('logoutNav').style.display = 'inline-block';
+        } else {
+          document.getElementById('userNav').innerHTML = `
+            <a href="/login.html" class="btn btn-secondary" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.5); backdrop-filter: blur(4px);">Sign In</a>
+            <a href="/signup.html" class="btn btn-primary" style="margin-left: 0.5rem;">Sign Up</a>
+          `;
+          document.getElementById('logoutNav').style.display = 'none';
+        }
+      });
+
+      function loadFilters() {
+        fetch(API + '/branches').then(r => r.json()).then(data => {
+          branches = data;
+          const sel = document.getElementById('branch');
+          sel.innerHTML = '<option value="">-- Select Branch --</option>';
+          data.forEach(b => { sel.innerHTML += `<option value="${b.id}">${b.name}</option>`; });
+        });
+        fetch(API + '/semesters').then(r => r.json()).then(data => {
+          semesters = data;
+          const sel = document.getElementById('semester');
+          sel.innerHTML = '<option value="">-- Select Semester --</option>';
+          data.forEach(s => { sel.innerHTML += `<option value="${s.id}">${s.number}</option>`; });
+        });
+        fetch(API + '/years').then(r => r.json()).then(data => {
+          years = data;
+          const sel = document.getElementById('year');
+          sel.innerHTML = '<option value="">-- Select Year --</option>';
+          data.forEach(y => { sel.innerHTML += `<option value="${y}">${y}</option>`; });
+        });
+        document.getElementById('semester').addEventListener('change', loadSubjectsForFilter);
+        document.getElementById('branch').addEventListener('change', loadSubjectsForFilter);
+      }
+
+      function loadSubjectsForFilter() {
+        const semId = document.getElementById('semester').value;
+        const branchId = document.getElementById('branch').value;
+        const subSel = document.getElementById('subject');
+        subSel.innerHTML = '<option value="">-- Select Subject --</option>';
+        if (!semId) return;
+        let url = API + '/subjects?semester_id=' + semId;
+        if (branchId) url += '&branch_id=' + branchId;
+        fetch(url).then(r => r.json()).then(data => {
+          data.forEach(s => { subSel.innerHTML += `<option value="${s.id}">${s.name}</option>`; });
+        });
+      }
+
+      function searchPapers() {
+        const branchId = document.getElementById('branch').value;
+        const semesterId = document.getElementById('semester').value;
+        const subjectId = document.getElementById('subject').value;
+        const year = document.getElementById('year').value;
+        if (!branchId || !semesterId || !subjectId || !year) {
+          alert('Please select all filters: Branch, Semester, Subject and Year.');
+          return;
+        }
+        const url = `${API}/papers?branch_id=${branchId}&semester_id=${semesterId}&subject_id=${subjectId}&year=${encodeURIComponent(year)}`;
+        fetch(url).then(r => r.json()).then(data => {
+          const list = document.getElementById('resultsList');
+          const card = document.getElementById('resultsCard');
+          const noRes = document.getElementById('noResults');
+          card.style.display = 'block';
+          list.innerHTML = '';
+          if (!data || data.length === 0) {
+            noRes.style.display = 'block';
+            return;
+          }
+          noRes.style.display = 'none';
+          data.forEach(p => {
+            const li = document.createElement('li');
+            li.innerHTML = `
+            <div class="results-info">
+              <strong>${p.subject_name}</strong> - ${p.branch_name} | Sem ${p.semester_num} | ${p.academic_year}
+              ${p.description ? '<br><small>' + p.description + '</small>' : ''}
+            </div>
+            <a href="${API}/papers/download/${p.id}" class="btn btn-success" download>Download</a>
+          `;
+            list.appendChild(li);
+          });
+        });
+      }
+
+      function logout() {
+        sessionStorage.removeItem('user');
+        sessionStorage.removeItem('guest');
+        location.reload();
+      }
+    </script>
+</body>
+
+</html>

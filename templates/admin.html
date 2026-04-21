@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Panel – PaperVault</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="/" class="brand">
+        <div class="brand-icon">📄</div>
+        <div>
+          <div class="brand-text">PaperVault</div>
+          <div class="brand-tagline">Admin Panel</div>
+        </div>
+      </a>
+      <nav>
+        <a href="/">Home</a>
+        <a href="#" onclick="adminLogout(); return false;">Logout</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <div id="adminContent" style="display: none;">
+      <div class="admin-section card">
+        <h3>Manage Branches</h3>
+        <div id="branchesList"></div>
+        <div class="admin-add">
+          <input type="text" id="newBranch" placeholder="Branch name">
+          <button class="btn btn-primary" onclick="addBranch()">Add Branch</button>
+        </div>
+      </div>
+
+      <div class="admin-section card">
+        <h3>Manage Semesters</h3>
+        <div id="semestersList"></div>
+        <div class="admin-add">
+          <select id="newSemester">
+            <option value="">Select semester</option>
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+            <option value="6">6</option>
+            <option value="7">7</option>
+            <option value="8">8</option>
+          </select>
+          <button class="btn btn-primary" onclick="addSemester()">Add Semester</button>
+        </div>
+      </div>
+
+      <div class="admin-section card">
+        <h3>Manage Subjects</h3>
+        <div class="form-group">
+          <label>Filter by Semester</label>
+          <select id="subjectSemester" onchange="loadSubjects()">
+            <option value="">All</option>
+          </select>
+        </div>
+        <div id="subjectsList"></div>
+        <div class="admin-add">
+          <select id="newSubjectSemester">
+            <option value="">Select semester</option>
+          </select>
+          <input type="text" id="newSubject" placeholder="Subject name">
+          <button class="btn btn-primary" onclick="addSubject()">Add Subject</button>
+        </div>
+      </div>
+
+      <div class="admin-section card">
+        <h3>Upload Question Paper</h3>
+        <form class="upload-form" onsubmit="return uploadPaper(event)">
+          <div class="filter-grid">
+            <div class="form-group">
+              <label>Branch</label>
+              <select id="uploadBranch" required></select>
+            </div>
+            <div class="form-group">
+              <label>Semester</label>
+              <select id="uploadSemester" required></select>
+            </div>
+            <div class="form-group">
+              <label>Subject</label>
+              <select id="uploadSubject" required></select>
+            </div>
+            <div class="form-group">
+              <label>Academic Year (e.g. 2023-24)</label>
+              <input type="text" id="uploadYear" required placeholder="2023-24">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Description (optional)</label>
+            <input type="text" id="uploadDesc" placeholder="e.g. Winter 2023">
+          </div>
+          <div class="form-group">
+            <label>PDF File</label>
+            <input type="file" id="uploadFile" accept=".pdf" required>
+          </div>
+          <button type="submit" class="btn btn-primary">Upload</button>
+          <span id="uploadAlert"></span>
+        </form>
+      </div>
+
+      <div class="admin-section card">
+        <h3>All Uploaded Papers</h3>
+        <table class="papers-table">
+          <thead>
+            <tr>
+              <th>Branch</th>
+              <th>Sem</th>
+              <th>Subject</th>
+              <th>Year</th>
+              <th>Uploaded</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="papersTable"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const API = '/api';
+    let adminLoggedIn = false;
+    // Trash icon SVG matching the requested symbol
+    const deleteIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+      <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+      <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+    </svg>`;
+
+    function checkAdminSession() {
+      fetch(API + '/admin/check', { credentials: 'include' })
+        .then(r => r.json())
+        .then(data => {
+          if (data.logged_in) {
+            adminLoggedIn = true;
+            document.getElementById('adminContent').style.display = 'block';
+            loadAdminData();
+          } else {
+            window.location.href = '/';
+          }
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', checkAdminSession);
+
+    function adminLogout() {
+      fetch(API + '/admin/logout', { method: 'POST', credentials: 'include' })
+        .then(() => { location.reload(); });
+    }
+
+    function loadAdminData() {
+      loadBranches();
+      loadSemesters();
+      loadSubjects();
+      loadPapers();
+      populateUploadDropdowns();
+    }
+
+    function loadBranches() {
+      fetch(API + '/admin/branches', { credentials: 'include' })
+        .then(r => r.json())
+        .then(data => {
+          const ul = document.getElementById('branchesList');
+          ul.innerHTML = data.map(b => `<div class="admin-item"><span>${b.name}</span><button class="btn btn-danger btn-icon" onclick="deleteBranch(${b.id})" title="Delete">${deleteIconSvg}</button></div>`).join('');
+          const sel = document.getElementById('uploadBranch');
+          sel.innerHTML = '<option value="">-- Select --</option>' + data.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
+        });
+    }
+
+    function loadSemesters() {
+      fetch(API + '/admin/semesters', { credentials: 'include' })
+        .then(r => r.json())
+        .then(data => {
+          const ul = document.getElementById('semestersList');
+          ul.innerHTML = data.map(s => `<div class="admin-item"><span>Semester ${s.number}</span><button class="btn btn-danger btn-icon" onclick="deleteSemester(${s.id})" title="Delete">${deleteIconSvg}</button></div>`).join('');
+          const sel = document.getElementById('uploadSemester');
+          const subjSel = document.getElementById('subjectSemester');
+          const newSubjSel = document.getElementById('newSubjectSemester');
+          const opt = '<option value="">-- Select --</option>' + data.map(s => `<option value="${s.id}">${s.number}</option>`).join('');
+          sel.innerHTML = opt;
+          subjSel.innerHTML = '<option value="">All</option>' + data.map(s => `<option value="${s.id}">${s.number}</option>`).join('');
+          newSubjSel.innerHTML = '<option value="">Select semester</option>' + data.map(s => `<option value="${s.id}">${s.number}</option>`).join('');
+        });
+    }
+
+    function loadSubjects() {
+      const semId = document.getElementById('subjectSemester').value;
+      const url = semId ? API + '/admin/subjects?semester_id=' + semId : API + '/admin/subjects';
+      fetch(url, { credentials: 'include' })
+        .then(r => r.json())
+        .then(data => {
+          const ul = document.getElementById('subjectsList');
+          ul.innerHTML = data.map(s => `<div class="admin-item"><span>${s.name} (Sem ${s.semester_id})</span><button class="btn btn-danger btn-icon" onclick="deleteSubject(${s.id})" title="Delete">${deleteIconSvg}</button></div>`).join('');
+        });
+      populateUploadSubject();
+    }
+
+    function deleteBranch(id) {
+      if (!confirm('Delete this branch?')) return;
+      fetch(API + '/admin/branches/' + id, { method: 'DELETE', credentials: 'include' })
+        .then(r => r.json())
+        .then(data => { if (data.error) alert(data.error); else loadBranches(); });
+    }
+
+    function deleteSemester(id) {
+      if (!confirm('Delete this semester? Associated subjects will also be removed.')) return;
+      fetch(API + '/admin/semesters/' + id, { method: 'DELETE', credentials: 'include' })
+        .then(r => r.json())
+        .then(data => { if (data.error) alert(data.error); else { loadSemesters(); loadSubjects(); populateUploadSubject(); } });
+    }
+
+    function deleteSubject(id) {
+      if (!confirm('Delete this subject?')) return;
+      fetch(API + '/admin/subjects/' + id, { method: 'DELETE', credentials: 'include' })
+        .then(r => r.json())
+        .then(data => { if (data.error) alert(data.error); else { loadSubjects(); populateUploadSubject(); } });
+    }
+
+    function populateUploadDropdowns() {
+      fetch(API + '/admin/semesters', { credentials: 'include' }).then(r => r.json()).then(data => {
+        document.getElementById('uploadSemester').addEventListener('change', populateUploadSubject);
+      });
+    }
+
+    function populateUploadSubject() {
+      const semId = document.getElementById('uploadSemester').value;
+      const sel = document.getElementById('uploadSubject');
+      sel.innerHTML = '<option value="">-- Select Subject --</option>';
+      if (!semId) return;
+      fetch(API + '/subjects?semester_id=' + semId).then(r => r.json()).then(data => {
+        data.forEach(s => { sel.innerHTML += `<option value="${s.id}">${s.name}</option>`; });
+      });
+    }
+
+    function addBranch() {
+      const name = document.getElementById('newBranch').value.trim();
+      if (!name) { alert('Enter branch name'); return; }
+      fetch(API + '/admin/branches', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+        credentials: 'include'
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.error) alert(data.error);
+          else { document.getElementById('newBranch').value = ''; loadBranches(); }
+        });
+    }
+
+    function addSemester() {
+      const num = document.getElementById('newSemester').value;
+      if (!num) { alert('Select semester'); return; }
+      fetch(API + '/admin/semesters', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ number: parseInt(num) }),
+        credentials: 'include'
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.error) alert(data.error);
+          else { document.getElementById('newSemester').value = ''; loadSemesters(); }
+        });
+    }
+
+    function addSubject() {
+      const name = document.getElementById('newSubject').value.trim();
+      const semester_id = document.getElementById('newSubjectSemester').value;
+      if (!name || !semester_id) { alert('Enter subject name and select semester'); return; }
+      fetch(API + '/admin/subjects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, semester_id }),
+        credentials: 'include'
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.error) alert(data.error);
+          else { document.getElementById('newSubject').value = ''; loadSubjects(); populateUploadSubject(); }
+        });
+    }
+
+    function uploadPaper(e) {
+      e.preventDefault();
+      const branch_id = document.getElementById('uploadBranch').value;
+      const semester_id = document.getElementById('uploadSemester').value;
+      const subject_id = document.getElementById('uploadSubject').value;
+      const academic_year = document.getElementById('uploadYear').value.trim();
+      const description = document.getElementById('uploadDesc').value.trim();
+      const file = document.getElementById('uploadFile').files[0];
+      if (!file || !file.name.endsWith('.pdf')) { alert('Select a PDF file'); return false; }
+      const fd = new FormData();
+      fd.append('branch_id', branch_id);
+      fd.append('semester_id', semester_id);
+      fd.append('subject_id', subject_id);
+      fd.append('academic_year', academic_year);
+      fd.append('description', description);
+      fd.append('file', file);
+      document.getElementById('uploadAlert').textContent = 'Uploading...';
+      fetch(API + '/admin/papers', {
+        method: 'POST',
+        body: fd,
+        credentials: 'include'
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.error) document.getElementById('uploadAlert').innerHTML = '<span class="alert alert-error">' + data.error + '</span>';
+          else {
+            document.getElementById('uploadAlert').innerHTML = '<span class="alert alert-success">Uploaded!</span>';
+            document.getElementById('uploadFile').value = '';
+            loadPapers();
+          }
+        })
+        .catch(() => { document.getElementById('uploadAlert').textContent = 'Upload failed'; });
+      return false;
+    }
+
+    function loadPapers() {
+      fetch(API + '/admin/papers', { credentials: 'include' })
+        .then(r => r.json())
+        .then(data => {
+          const tbody = document.getElementById('papersTable');
+          if (!data || data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6">No papers uploaded yet.</td></tr>';
+            return;
+          }
+          tbody.innerHTML = data.map(p => `
+            <tr>
+              <td>${p.branch_name}</td>
+              <td>${p.semester_num}</td>
+              <td>${p.subject_name}</td>
+              <td>${p.academic_year}</td>
+              <td>${p.upload_date || '-'}</td>
+              <td><button class="btn btn-danger btn-icon" onclick="deletePaper(${p.id})" title="Delete">${deleteIconSvg}</button></td>
+            </tr>
+          `).join('');
+        });
+    }
+
+    function deletePaper(id) {
+      if (!confirm('Delete this paper?')) return;
+      fetch(API + '/admin/papers/' + id, { method: 'DELETE', credentials: 'include' })
+        .then(r => r.json())
+        .then(data => {
+          if (data.error) alert(data.error);
+          else loadPapers();
+        });
+    }
+  </script>
+</body>
+</html>

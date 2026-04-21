@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign Up – PaperVault</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+
+<body>
+  <header>
+    <div class="container">
+      <a href="/" class="brand">
+        <div class="brand-icon">📄</div>
+        <div>
+          <div class="brand-text">PaperVault</div>
+          <div class="brand-tagline">Previous Year Question Papers</div>
+        </div>
+      </a>
+      <nav>
+        <a href="/">Home</a>
+        <a href="/login.html">Sign In</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="card auth-card">
+      <h2>Sign Up</h2>
+      <div id="alert"></div>
+      <form onsubmit="return handleSignup(event)">
+        <div class="form-group">
+          <label for="username">Username</label>
+          <input type="text" id="username" required placeholder="Choose a username">
+        </div>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" required placeholder="Choose a password">
+        </div>
+        <div class="form-group">
+          <label for="email">Email (optional)</label>
+          <input type="email" id="email" placeholder="Your email">
+        </div>
+        <div class="form-group">
+          <label for="academic_year">Academic Year (optional)</label>
+          <select id="academic_year">
+            <option value="">-- Select Year --</option>
+            <option value="FY">First Year (FY)</option>
+            <option value="SY">Second Year (SY)</option>
+            <option value="TY">Third Year (TY)</option>
+            <option value="BY">Fourth Year (BY)</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary">Sign Up</button>
+      </form>
+      <p class="auth-links">
+        Already have an account? <a href="/login.html">Sign In</a><br>
+        <a href="/">Continue without sign in</a>
+      </p>
+    </div>
+  </main>
+
+  <script>
+    function showAlert(msg, type) {
+      const el = document.getElementById('alert');
+      el.className = 'alert alert-' + (type || 'error');
+      el.textContent = msg;
+      el.style.display = msg ? 'block' : 'none';
+    }
+
+    function handleSignup(e) {
+      e.preventDefault();
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value.trim();
+      const email = document.getElementById('email').value.trim();
+      const academic_year = document.getElementById('academic_year').value || null;
+      fetch('/api/user/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password, email, academic_year })
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.error) {
+            showAlert(data.error);
+            return;
+          }
+          showAlert('Account created!', 'success');
+          setTimeout(() => { window.location.href = '/login.html'; }, 1000);
+        })
+        .catch(() => showAlert('Something went wrong.'));
+      return false;
+    }
+  </script>
+</body>
+
+</html>
